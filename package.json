@@ -1,7 +1,7 @@
 {
-  "name": "rdv-medical",
+  "name": "foodexpress",
   "version": "1.0.0",
-  "description": "Application simple de prise de rendez-vous médicaux (Node.js + MySQL)",
+  "description": "FoodExpress — plateforme de commande de repas en ligne (Node.js + MySQL)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "express": "^4.21.2",
-    "mysql2": "^3.11.5",
-    "nodemailer": "^10.1.7"
+    "mysql2": "^3.11.5"
   }
 }

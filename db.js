@@ -1,5 +1,5 @@
 const mysql = require('mysql2/promise');
-const config = require('./db.config');
+const config = require('./config');
 
 const pool = mysql.createPool({
   host: config.host,
@@ -8,6 +8,7 @@ const pool = mysql.createPool({
   password: config.password,
   database: config.database,
   connectionLimit: config.connectionLimit,
+  connectTimeout: 5000,
   dateStrings: true,
 });
 

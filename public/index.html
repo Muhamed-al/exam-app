@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MediRDV — Prise de rendez-vous</title>
+  <title>FoodExpress — Commande de repas en ligne</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -14,140 +14,147 @@
     <div class="topbar-inner">
       <a href="#" class="brand">
         <span class="brand-logo" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>
         </span>
-        MediRDV
+        FoodExpress
       </a>
-      <a href="#mes-rdv" class="nav-link">Rendez-vous <span id="rdv-count" class="badge">0</span></a>
+      <nav class="nav">
+        <a href="#menu" class="nav-link">Menu</a>
+        <a href="#commandes" class="nav-link">Commandes <span id="cmd-count" class="badge">0</span></a>
+      </nav>
     </div>
   </header>
 
   <section class="hero">
-    <p class="eyebrow">Réservation en ligne · 24h/24</p>
-    <h1>Prenez rendez-vous avec <span>votre médecin</span> en quelques clics</h1>
-    <p class="lead">Choisissez une spécialité, un praticien et le créneau qui vous convient. Confirmation immédiate.</p>
+    <div class="hero-text">
+      <p class="eyebrow">🔥 Livraison offerte dès <span class="seuil">40 DT</span></p>
+      <h1>Vos plats préférés, <span>livrés chauds</span> en 40 minutes</h1>
+      <p class="lead">Pizzas, burgers, plats tunisiens et desserts préparés à la commande. Livraison à domicile ou à emporter.</p>
+      <div class="hero-stats">
+        <div><strong>35–45 min</strong><span>Livraison</span></div>
+        <div><strong>20 min</strong><span>À emporter</span></div>
+        <div><strong>4,8 ★</strong><span>Avis clients</span></div>
+      </div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <span class="float f1">🍕</span>
+      <span class="float f2">🍔</span>
+      <span class="float f3">🥗</span>
+      <span class="float f4">🍰</span>
+      <div class="hero-plate">🍲</div>
+    </div>
   </section>
 
-  <main class="layout">
-    <form id="rdv-form" class="steps" novalidate>
-      <!-- Étape 1 -->
-      <section class="step" id="step-1" data-state="active">
-        <header class="step-head">
-          <span class="step-num">1</span>
-          <div>
-            <h2>Spécialité</h2>
-            <p>Quel type de consultation recherchez-vous ?</p>
-          </div>
-        </header>
-        <div id="specialites" class="spec-grid" role="radiogroup" aria-label="Spécialités">
-          <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
-        </div>
-      </section>
+  <main class="layout" id="menu">
+    <section class="menu">
+      <div class="menu-head">
+        <h2>Notre menu</h2>
+        <div id="categories" class="cats" role="tablist" aria-label="Catégories"></div>
+      </div>
+      <div id="plats" class="dishes">
+        <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+      </div>
+    </section>
 
-      <!-- Étape 2 -->
-      <section class="step" id="step-2" data-state="locked">
-        <header class="step-head">
-          <span class="step-num">2</span>
-          <div>
-            <h2>Médecin</h2>
-            <p>Sélectionnez votre praticien.</p>
-          </div>
-        </header>
-        <div id="medecins" class="doc-grid" role="radiogroup" aria-label="Médecins">
-          <p class="hint">Choisissez d'abord une spécialité.</p>
+    <!-- Panier -->
+    <aside class="cart" id="panier">
+      <div class="cart-card">
+        <div class="cart-title">
+          <h3>Votre panier</h3>
+          <button type="button" id="vider" class="link-btn" hidden>Vider</button>
         </div>
-      </section>
 
-      <!-- Étape 3 -->
-      <section class="step" id="step-3" data-state="locked">
-        <header class="step-head">
-          <span class="step-num">3</span>
-          <div>
-            <h2>Date &amp; heure</h2>
-            <p>Les créneaux affichés sont disponibles.</p>
-          </div>
-        </header>
-        <div class="days-wrap">
-          <button type="button" class="scroll-btn" data-dir="-1" aria-label="Jours précédents">‹</button>
-          <div id="jours" class="days" role="radiogroup" aria-label="Jours"></div>
-          <button type="button" class="scroll-btn" data-dir="1" aria-label="Jours suivants">›</button>
+        <div class="mode" role="radiogroup" aria-label="Mode de commande">
+          <button type="button" class="mode-btn" role="radio" data-mode="livraison" aria-checked="true">🛵 Livraison</button>
+          <button type="button" class="mode-btn" role="radio" data-mode="emporter" aria-checked="false">🛍️ À emporter</button>
         </div>
-        <div id="creneaux" class="slots">
-          <p class="hint">Choisissez un médecin puis une date.</p>
-        </div>
-      </section>
 
-      <!-- Étape 4 -->
-      <section class="step" id="step-4" data-state="locked">
-        <header class="step-head">
-          <span class="step-num">4</span>
-          <div>
-            <h2>Vos coordonnées</h2>
-            <p>Pour vous envoyer la confirmation.</p>
-          </div>
-        </header>
-        <div class="fields">
-          <div class="field">
-            <input type="text" id="prenom" placeholder=" " required maxlength="100" autocomplete="given-name" />
-            <label for="prenom">Prénom *</label>
-          </div>
-          <div class="field">
-            <input type="text" id="nom" placeholder=" " required maxlength="100" autocomplete="family-name" />
-            <label for="nom">Nom *</label>
-          </div>
-          <div class="field">
-            <input type="email" id="email" placeholder=" " required maxlength="150" autocomplete="email" />
-            <label for="email">Email *</label>
-          </div>
-          <div class="field">
-            <input type="tel" id="telephone" placeholder=" " maxlength="30" autocomplete="tel" />
-            <label for="telephone">Téléphone</label>
-          </div>
-          <div class="field full">
-            <input type="text" id="motif" placeholder=" " maxlength="255" />
-            <label for="motif">Motif de la consultation</label>
-          </div>
-        </div>
-      </section>
-    </form>
+        <ul id="cart-lines" class="cart-lines"></ul>
 
-    <!-- Récapitulatif -->
-    <aside class="summary">
-      <div class="summary-card">
-        <h3>Récapitulatif</h3>
-        <ul class="summary-list">
-          <li><span>Spécialité</span><strong id="sum-spec">—</strong></li>
-          <li><span>Médecin</span><strong id="sum-doc">—</strong></li>
-          <li><span>Date</span><strong id="sum-date">—</strong></li>
-          <li><span>Heure</span><strong id="sum-heure">—</strong></li>
+        <div id="free-delivery" class="free-delivery">
+          <p id="free-text"></p>
+          <div class="progress"><div id="free-bar"></div></div>
+        </div>
+
+        <ul class="totals">
+          <li><span>Sous-total</span><strong id="sous-total">0,00 DT</strong></li>
+          <li><span>Livraison</span><strong id="frais">—</strong></li>
+          <li class="grand"><span>Total</span><strong id="total">0,00 DT</strong></li>
         </ul>
-        <div class="progress" aria-hidden="true"><div id="progress-bar"></div></div>
-        <button type="submit" form="rdv-form" id="submit-btn" class="btn-primary" disabled>
-          <span>Confirmer le rendez-vous</span>
-        </button>
-        <p class="summary-note">Annulation gratuite jusqu'à 24h avant.</p>
+
+        <button type="button" id="checkout-btn" class="btn-primary" disabled>Commander</button>
       </div>
     </aside>
   </main>
 
-  <section id="mes-rdv" class="appointments">
-    <div class="appointments-head">
-      <h2>Rendez-vous enregistrés</h2>
-    </div>
-    <div id="rdv-list" class="rdv-grid"></div>
+  <section id="commandes" class="orders">
+    <h2>Dernières commandes</h2>
+    <div id="cmd-list" class="orders-grid"></div>
   </section>
 
-  <footer class="footer">© MediRDV — Application de démonstration</footer>
+  <footer class="footer">
+    © FoodExpress — Application de démonstration
+    <div class="server-info">
+      Servi par <code id="info-instance">…</code> · Base de données : <code id="info-db">…</code>
+    </div>
+  </footer>
+
+  <!-- Barre panier mobile -->
+  <a href="#panier" id="mobile-cart" class="mobile-cart" hidden>
+    <span>🛒 <b id="mobile-count">0</b> article(s)</span>
+    <strong id="mobile-total">0,00 DT</strong>
+  </a>
+
+  <!-- Coordonnées -->
+  <dialog id="checkout-dialog" class="dialog">
+    <form id="checkout-form" method="dialog" novalidate>
+      <div class="dialog-head">
+        <h3>Finaliser la commande</h3>
+        <button type="button" class="close-btn" id="checkout-close" aria-label="Fermer">×</button>
+      </div>
+      <div class="fields">
+        <div class="field">
+          <input type="text" id="prenom" placeholder=" " required maxlength="100" autocomplete="given-name" />
+          <label for="prenom">Prénom *</label>
+        </div>
+        <div class="field">
+          <input type="text" id="nom" placeholder=" " required maxlength="100" autocomplete="family-name" />
+          <label for="nom">Nom *</label>
+        </div>
+        <div class="field">
+          <input type="tel" id="telephone" placeholder=" " required maxlength="30" autocomplete="tel" />
+          <label for="telephone">Téléphone *</label>
+        </div>
+        <div class="field">
+          <input type="email" id="email" placeholder=" " maxlength="150" autocomplete="email" />
+          <label for="email">Email</label>
+        </div>
+        <div class="field full" id="adresse-field">
+          <input type="text" id="adresse" placeholder=" " required maxlength="255" autocomplete="street-address" />
+          <label for="adresse">Adresse de livraison *</label>
+        </div>
+        <div class="field full">
+          <input type="text" id="note" placeholder=" " maxlength="255" />
+          <label for="note">Instructions (sans oignons, code porte…)</label>
+        </div>
+      </div>
+      <div class="checkout-total">
+        <span id="checkout-mode"></span>
+        <strong id="checkout-total"></strong>
+      </div>
+      <button type="submit" id="confirm-btn" class="btn-primary"><span>Confirmer et payer à la réception</span></button>
+    </form>
+  </dialog>
 
   <!-- Confirmation -->
-  <dialog id="success-dialog" class="dialog">
+  <dialog id="success-dialog" class="dialog center">
     <div class="check" aria-hidden="true">
       <svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-15"/></svg>
     </div>
-    <h3>Rendez-vous confirmé !</h3>
+    <h3>Commande confirmée !</h3>
     <p id="success-text"></p>
-    <p id="success-email" class="dialog-email"></p>
-    <button type="button" class="btn-primary" id="dialog-close">Parfait</button>
+    <p id="success-ref" class="pill-info"></p>
+    <button type="button" class="btn-primary" id="success-close">Super, merci !</button>
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

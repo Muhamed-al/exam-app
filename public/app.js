@@ -1,32 +1,23 @@
 const $ = (id) => document.getElementById(id);
 
-const state = { specialite: null, medecin: null, date: null, heure: null };
-
-const JOURS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
-const AVATAR_COLORS = ['#0d9488', '#6366f1', '#f59e0b', '#ec4899', '#0ea5e9', '#8b5cf6', '#10b981', '#ef4444'];
-
-const ICONS = {
-  generale: '<path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 12 0V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 12 0v-4"/><circle cx="20" cy="10" r="2"/>',
-  cardio: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
-  dermato: '<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>',
-  pediatr: '<circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M9.5 15a3.5 3.5 0 0 0 5 0"/>',
-  ophtalmo: '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
-  gyneco: '<circle cx="12" cy="9" r="6"/><path d="M12 15v7M9 19h6"/>',
-  default: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+const state = {
+  categories: [],
+  plats: [],
+  categorie: null, // null = toutes
+  panier: new Map(), // plat_id -> quantité
+  mode: 'livraison',
+  frais: 3,
+  seuil: 40,
 };
 
-function iconFor(nom) {
-  const n = nom.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const key = Object.keys(ICONS).find((k) => n.includes(k));
-  return `<svg viewBox="0 0 24 24">${ICONS[key || 'default']}</svg>`;
-}
+const CLE_PANIER = 'foodexpress-panier';
+
+const dt = (n) => `${Number(n).toFixed(2).replace('.', ',')} DT`;
 
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
   Object.entries(attrs).forEach(([k, v]) => {
     if (k === 'text') node.textContent = v;
-    else if (k === 'html') node.innerHTML = v;
     else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
     else node.setAttribute(k, v);
   });
@@ -34,26 +25,13 @@ function el(tag, attrs = {}, children = []) {
   return node;
 }
 
-function toISO(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function formatDateLong(iso) {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-}
-
-function initiales(m) {
-  return `${m.prenom[0] || ''}${m.nom[0] || ''}`.toUpperCase();
-}
-
 let toastTimer;
-function toast(text) {
+function toast(text, type = 'error') {
   const t = $('toast');
   t.textContent = text;
-  t.classList.add('show');
+  t.className = `toast show ${type}`;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
 }
 
 async function api(url, options) {
@@ -63,228 +41,205 @@ async function api(url, options) {
   return data;
 }
 
-function selectIn(container, button) {
-  container.querySelectorAll('[aria-checked]').forEach((b) => b.setAttribute('aria-checked', 'false'));
-  button.setAttribute('aria-checked', 'true');
+/* ---------- Panier (mémorisé dans le navigateur) ---------- */
+function sauverPanier() {
+  try {
+    localStorage.setItem(CLE_PANIER, JSON.stringify({ lignes: [...state.panier], mode: state.mode }));
+  } catch {}
 }
 
-/* ---------- Étapes & récapitulatif ---------- */
-function refreshUI() {
-  const done = [!!state.specialite, !!state.medecin, !!(state.date && state.heure)];
-  const firstOpen = done.indexOf(false);
-  [1, 2, 3, 4].forEach((n) => {
-    const step = $(`step-${n}`);
-    const unlocked = n === 1 || done[n - 2];
-    let s = 'locked';
-    if (unlocked) s = n <= 3 && done[n - 1] ? 'done' : 'active';
-    if (unlocked && firstOpen !== -1 && n - 1 > firstOpen) s = 'locked';
-    step.dataset.state = s;
-  });
-
-  $('sum-spec').textContent = state.specialite ? state.specialite.nom : '—';
-  $('sum-doc').textContent = state.medecin ? `Dr ${state.medecin.prenom} ${state.medecin.nom}` : '—';
-  $('sum-date').textContent = state.date ? formatDateLong(state.date) : '—';
-  $('sum-heure').textContent = state.heure || '—';
-
-  const filled = ['prenom', 'nom', 'email'].every((id) => $(id).value.trim());
-  const progress = done.filter(Boolean).length + (filled ? 1 : 0);
-  $('progress-bar').style.width = `${(progress / 4) * 100}%`;
-  $('submit-btn').disabled = !done.every(Boolean);
-}
-
-/* ---------- Spécialités ---------- */
-async function chargerSpecialites() {
-  const specialites = await api('/api/specialites');
-  const grid = $('specialites');
-  grid.innerHTML = '';
-  specialites.forEach((s) => {
-    const btn = el('button', {
-      type: 'button',
-      class: 'tile',
-      role: 'radio',
-      'aria-checked': 'false',
-      onclick: () => {
-        selectIn(grid, btn);
-        state.specialite = s;
-        state.medecin = state.date = state.heure = null;
-        chargerMedecins().catch((e) => toast(e.message));
-        resetCreneaux();
-        refreshUI();
-      },
-    }, [
-      el('span', { class: 'tile-icon', html: iconFor(s.nom) }),
-      el('span', { class: 'tile-title', text: s.nom }),
-    ]);
-    grid.append(btn);
-  });
-}
-
-/* ---------- Médecins ---------- */
-async function chargerMedecins() {
-  const grid = $('medecins');
-  grid.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
-  const medecins = await api(`/api/medecins?specialite_id=${state.specialite.id}`);
-  grid.innerHTML = '';
-  if (!medecins.length) {
-    grid.append(el('p', { class: 'hint', text: 'Aucun médecin disponible pour cette spécialité.' }));
-    return;
-  }
-  medecins.forEach((m) => {
-    const btn = el('button', {
-      type: 'button',
-      class: 'tile',
-      role: 'radio',
-      'aria-checked': 'false',
-      onclick: () => {
-        selectIn(grid, btn);
-        state.medecin = m;
-        state.heure = null;
-        if (!state.date) {
-          const first = $('jours').querySelector('.day');
-          if (first) first.click();
-        } else {
-          chargerCreneaux().catch((e) => toast(e.message));
-        }
-        refreshUI();
-      },
-    }, [
-      el('span', { class: 'avatar', text: initiales(m), style: `background:${AVATAR_COLORS[m.id % AVATAR_COLORS.length]}` }),
-      el('span', {}, [
-        el('span', { class: 'tile-title', text: `Dr ${m.prenom} ${m.nom}` }),
-        el('br'),
-        el('span', { class: 'tile-sub', text: m.specialite }),
-      ]),
-    ]);
-    grid.append(btn);
-  });
-}
-
-/* ---------- Jours ---------- */
-function construireJours() {
-  const container = $('jours');
-  const d = new Date();
-  let count = 0;
-  while (count < 21) {
-    if (d.getDay() !== 0) {
-      const iso = toISO(d);
-      const label = count === 0 && iso === toISO(new Date()) ? 'Auj.' : JOURS[d.getDay()];
-      const btn = el('button', {
-        type: 'button',
-        class: 'day',
-        role: 'radio',
-        'aria-checked': 'false',
-        'aria-label': formatDateLong(iso),
-        onclick: () => {
-          selectIn(container, btn);
-          state.date = iso;
-          state.heure = null;
-          chargerCreneaux().catch((e) => toast(e.message));
-          refreshUI();
-        },
-      }, [
-        el('small', { text: label }),
-        el('strong', { text: String(d.getDate()) }),
-        el('small', { text: MOIS[d.getMonth()] }),
-      ]);
-      container.append(btn);
-      count++;
+function restaurerPanier() {
+  try {
+    const data = JSON.parse(localStorage.getItem(CLE_PANIER) || 'null');
+    if (data) {
+      state.panier = new Map(data.lignes);
+      state.mode = data.mode === 'emporter' ? 'emporter' : 'livraison';
     }
-    d.setDate(d.getDate() + 1);
-  }
-  document.querySelectorAll('.scroll-btn').forEach((b) =>
-    b.addEventListener('click', () => container.scrollBy({ left: Number(b.dataset.dir) * 240, behavior: 'smooth' }))
-  );
+  } catch {}
 }
 
-/* ---------- Créneaux ---------- */
-function resetCreneaux() {
-  $('jours').querySelectorAll('[aria-checked]').forEach((b) => b.setAttribute('aria-checked', 'false'));
-  $('creneaux').innerHTML = '<p class="hint">Choisissez un médecin puis une date.</p>';
+function platParId(id) {
+  return state.plats.find((p) => p.id === id);
 }
 
-async function chargerCreneaux() {
-  const box = $('creneaux');
-  if (!state.medecin || !state.date) return;
-  box.innerHTML = '<div class="skeleton" style="height:44px"></div>';
-  let creneaux = await api(`/api/medecins/${state.medecin.id}/creneaux?date=${state.date}`);
-
-  // Masquer les créneaux déjà passés pour aujourd'hui
-  if (state.date === toISO(new Date())) {
-    const now = new Date();
-    const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    creneaux = creneaux.filter((c) => c > hhmm);
+function changerQuantite(id, delta) {
+  const q = (state.panier.get(id) || 0) + delta;
+  if (q <= 0) state.panier.delete(id);
+  else state.panier.set(id, Math.min(q, 20));
+  sauverPanier();
+  rendrePlats();
+  rendrePanier();
+  if (delta > 0) {
+    const badge = $('mobile-count');
+    badge.classList.remove('bump');
+    void badge.offsetWidth;
+    badge.classList.add('bump');
   }
+}
 
+function calculTotaux() {
+  let sousTotal = 0;
+  let articles = 0;
+  state.panier.forEach((q, id) => {
+    const p = platParId(id);
+    if (p) {
+      sousTotal += p.prix * q;
+      articles += q;
+    }
+  });
+  const frais = state.mode === 'livraison' && sousTotal > 0 && sousTotal < state.seuil ? state.frais : 0;
+  return { sousTotal, frais, total: sousTotal + frais, articles };
+}
+
+function stepper(id, q) {
+  return el('div', { class: 'stepper' }, [
+    el('button', { type: 'button', 'aria-label': 'Retirer un', text: '−', onclick: () => changerQuantite(id, -1) }),
+    el('span', { text: String(q) }),
+    el('button', { type: 'button', 'aria-label': 'Ajouter un', text: '+', onclick: () => changerQuantite(id, 1) }),
+  ]);
+}
+
+/* ---------- Menu ---------- */
+function rendreCategories() {
+  const box = $('categories');
   box.innerHTML = '';
-  if (!creneaux.length) {
-    box.append(el('p', { class: 'hint', text: 'Aucun créneau disponible ce jour-là. Essayez une autre date.' }));
-    return;
-  }
-
-  const groupes = [
-    ['Matin', creneaux.filter((c) => c < '12:00')],
-    ['Après-midi', creneaux.filter((c) => c >= '12:00')],
-  ];
-  groupes.forEach(([titre, liste]) => {
-    if (!liste.length) return;
-    const row = el('div', { class: 'slots-row', role: 'radiogroup', 'aria-label': titre });
-    liste.forEach((c) => {
-      const btn = el('button', {
+  const tous = [{ id: null, nom: 'Tout', icone: '🍽️' }, ...state.categories];
+  tous.forEach((c) => {
+    box.append(
+      el('button', {
         type: 'button',
-        class: 'slot',
-        role: 'radio',
-        'aria-checked': 'false',
-        text: c,
+        class: 'cat',
+        role: 'tab',
+        'aria-selected': String(state.categorie === c.id),
+        text: `${c.icone} ${c.nom}`,
         onclick: () => {
-          selectIn(box, btn);
-          state.heure = c;
-          refreshUI();
-          if (window.innerWidth < 900) $('step-4').scrollIntoView({ behavior: 'smooth', block: 'start' });
-          else $('prenom').focus({ preventScroll: true });
+          state.categorie = c.id;
+          rendreCategories();
+          rendrePlats();
         },
-      });
-      row.append(btn);
-    });
-    box.append(el('div', { class: 'slots-group' }, [el('p', { class: 'slots-label', text: titre }), row]));
+      })
+    );
   });
 }
 
-/* ---------- Liste des rendez-vous ---------- */
-async function chargerRendezVous() {
-  const rdvs = await api('/api/rendez-vous');
-  const grid = $('rdv-list');
-  $('rdv-count').textContent = rdvs.length;
-  grid.innerHTML = '';
-  if (!rdvs.length) {
-    grid.append(el('div', { class: 'empty-state', text: 'Aucun rendez-vous pour le moment.' }));
+function rendrePlats() {
+  const box = $('plats');
+  box.innerHTML = '';
+  const liste = state.plats.filter((p) => state.categorie === null || p.categorie_id === state.categorie);
+  if (!liste.length) {
+    box.append(el('div', { class: 'empty-state', text: 'Aucun plat dans cette catégorie pour le moment.' }));
     return;
   }
-  rdvs.forEach((r, i) => {
-    const [, m, d] = r.date_rdv.split('-').map(Number);
-    const card = el('article', { class: 'rdv-card', style: `animation-delay:${Math.min(i, 10) * 40}ms` }, [
-      el('div', { class: 'rdv-date' }, [el('strong', { text: String(d) }), el('small', { text: MOIS[m - 1] })]),
-      el('div', { class: 'rdv-body' }, [
-        el('h4', { text: `${r.patient_prenom} ${r.patient_nom}` }),
-        el('p', { text: `Dr ${r.medecin_prenom} ${r.medecin_nom} · ${r.specialite}` }),
-        el('span', { class: 'chip', text: `🕒 ${r.heure_rdv}` }),
-      ]),
-    ]);
-    grid.append(card);
+  liste.forEach((p, i) => {
+    const q = state.panier.get(p.id) || 0;
+    const action = q
+      ? stepper(p.id, q)
+      : el('button', { type: 'button', class: 'add-btn', text: '+ Ajouter', onclick: () => changerQuantite(p.id, 1) });
+    box.append(
+      el('article', { class: 'dish', style: `animation-delay:${Math.min(i, 12) * 30}ms` }, [
+        el('div', { class: 'dish-visual' }, [
+          el('span', { text: p.icone }),
+          p.promo ? el('span', { class: 'promo-tag', text: 'Promo' }) : null,
+        ]),
+        el('div', { class: 'dish-body' }, [
+          el('h3', { text: p.nom }),
+          el('p', { text: p.description || '' }),
+          el('div', { class: 'dish-foot' }, [el('span', { class: 'price', text: dt(p.prix) }), action]),
+        ]),
+      ])
+    );
   });
 }
 
-/* ---------- Soumission ---------- */
-const form = $('rdv-form');
-form.addEventListener('input', (e) => {
-  e.target.closest('.field')?.classList.remove('invalid');
-  refreshUI();
+/* ---------- Panier ---------- */
+function rendrePanier() {
+  const lignes = $('cart-lines');
+  lignes.innerHTML = '';
+  state.panier.forEach((q, id) => {
+    const p = platParId(id);
+    if (!p) return;
+    lignes.append(
+      el('li', { class: 'cart-line' }, [
+        el('span', { class: 'emoji', text: p.icone }),
+        el('div', {}, [el('div', { class: 'name', text: p.nom }), el('div', { class: 'sub', text: dt(p.prix * q) })]),
+        stepper(id, q),
+      ])
+    );
+  });
+  if (!lignes.children.length) {
+    lignes.append(el('li', { class: 'cart-empty' }, [el('div', { text: '🛒' }), document.createTextNode('Votre panier est vide.')]));
+  }
+
+  document.querySelectorAll('.mode-btn').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.mode === state.mode)));
+
+  const { sousTotal, frais, total, articles } = calculTotaux();
+  $('sous-total').textContent = dt(sousTotal);
+  const fraisEl = $('frais');
+  fraisEl.className = '';
+  if (state.mode === 'emporter') fraisEl.textContent = 'Aucuns frais';
+  else if (!sousTotal) fraisEl.textContent = '—';
+  else if (frais) fraisEl.textContent = dt(frais);
+  else {
+    fraisEl.textContent = 'Offerte';
+    fraisEl.className = 'free';
+  }
+  $('total').textContent = dt(total);
+
+  const free = $('free-delivery');
+  free.hidden = state.mode !== 'livraison';
+  const reste = state.seuil - sousTotal;
+  free.classList.toggle('ok', reste <= 0);
+  $('free-text').textContent =
+    reste <= 0 ? '🎉 Livraison offerte !' : `Plus que ${dt(reste)} pour la livraison offerte`;
+  $('free-bar').style.width = `${Math.min(100, (sousTotal / state.seuil) * 100)}%`;
+
+  $('vider').hidden = !articles;
+  $('checkout-btn').disabled = !articles;
+  $('checkout-btn').textContent = articles ? `Commander · ${dt(total)}` : 'Commander';
+
+  $('mobile-cart').hidden = !articles;
+  $('mobile-count').textContent = articles;
+  $('mobile-total').textContent = dt(total);
+}
+
+document.querySelectorAll('.mode-btn').forEach((b) =>
+  b.addEventListener('click', () => {
+    state.mode = b.dataset.mode;
+    sauverPanier();
+    rendrePanier();
+  })
+);
+
+$('vider').addEventListener('click', () => {
+  state.panier.clear();
+  sauverPanier();
+  rendrePlats();
+  rendrePanier();
 });
 
-form.addEventListener('submit', async (e) => {
+/* ---------- Commande ---------- */
+const checkoutDialog = $('checkout-dialog');
+const checkoutForm = $('checkout-form');
+
+$('checkout-btn').addEventListener('click', () => {
+  const livraison = state.mode === 'livraison';
+  $('adresse-field').hidden = !livraison;
+  $('adresse').required = livraison;
+  $('checkout-mode').textContent = livraison ? '🛵 Livraison à domicile' : '🛍️ À emporter';
+  $('checkout-total').textContent = dt(calculTotaux().total);
+  checkoutDialog.showModal();
+  $('prenom').focus();
+});
+$('checkout-close').addEventListener('click', () => checkoutDialog.close());
+
+checkoutForm.addEventListener('input', (e) => e.target.closest('.field')?.classList.remove('invalid'));
+
+checkoutForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   let firstInvalid = null;
-  ['prenom', 'nom', 'email', 'telephone', 'motif'].forEach((id) => {
+  ['prenom', 'nom', 'telephone', 'email', 'adresse', 'note'].forEach((id) => {
     const input = $(id);
+    if (input.closest('.field').hidden) return;
     const ok = input.checkValidity() && (!input.required || input.value.trim());
     input.closest('.field').classList.toggle('invalid', !ok);
     if (!ok && !firstInvalid) firstInvalid = input;
@@ -295,57 +250,114 @@ form.addEventListener('submit', async (e) => {
     return;
   }
 
-  const btn = $('submit-btn');
+  const btn = $('confirm-btn');
   btn.classList.add('loading');
   btn.disabled = true;
   try {
-    const email = $('email').value.trim();
-    const result = await api('/api/rendez-vous', {
+    const result = await api('/api/commandes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        medecin_id: state.medecin.id,
-        date_rdv: state.date,
-        heure_rdv: state.heure,
-        motif: $('motif').value.trim(),
-        patient_nom: $('nom').value.trim(),
-        patient_prenom: $('prenom').value.trim(),
-        patient_email: email,
-        patient_telephone: $('telephone').value.trim(),
+        client_prenom: $('prenom').value.trim(),
+        client_nom: $('nom').value.trim(),
+        client_telephone: $('telephone').value.trim(),
+        client_email: $('email').value.trim(),
+        mode: state.mode,
+        adresse: $('adresse').value.trim(),
+        note: $('note').value.trim(),
+        lignes: [...state.panier].map(([plat_id, quantite]) => ({ plat_id, quantite })),
       }),
     });
+    checkoutDialog.close();
     $('success-text').textContent =
-      `Avec Dr ${state.medecin.prenom} ${state.medecin.nom}, ${formatDateLong(state.date)} à ${state.heure}.`;
-    const emailBox = $('success-email');
-    const messagesEmail = {
-      envoye: `✉️ Un email de confirmation a été envoyé à ${email}.`,
-      console: "SMTP non configuré : l'email a été affiché dans la console du serveur.",
-      echec: "L'email de confirmation n'a pas pu être envoyé.",
-    };
-    emailBox.textContent = messagesEmail[result.email_statut] || messagesEmail.echec;
-    emailBox.classList.toggle('warn', result.email_statut !== 'envoye');
+      state.mode === 'livraison'
+        ? `Merci ${$('prenom').value.trim()} ! Votre commande arrive dans ${result.delai}.`
+        : `Merci ${$('prenom').value.trim()} ! Votre commande sera prête dans ${result.delai}.`;
+    $('success-ref').textContent = `Commande ${result.reference} · ${dt(result.total)} à régler à la réception`;
     $('success-dialog').showModal();
-    form.reset();
-    state.heure = null;
-    await Promise.all([chargerCreneaux(), chargerRendezVous()]);
+
+    state.panier.clear();
+    sauverPanier();
+    $('note').value = '';
+    rendrePlats();
+    rendrePanier();
+    chargerCommandes().catch(() => {});
   } catch (err) {
     toast(err.message);
-    state.heure = null;
-    chargerCreneaux().catch(() => {});
   } finally {
     btn.classList.remove('loading');
-    refreshUI();
+    btn.disabled = false;
   }
 });
 
-$('dialog-close').addEventListener('click', () => {
+$('success-close').addEventListener('click', () => {
   $('success-dialog').close();
-  $('mes-rdv').scrollIntoView({ behavior: 'smooth' });
+  $('commandes').scrollIntoView({ behavior: 'smooth' });
 });
 
+/* ---------- Dernières commandes ---------- */
+async function chargerCommandes() {
+  const commandes = await api('/api/commandes');
+  const grid = $('cmd-list');
+  $('cmd-count').textContent = commandes.length;
+  grid.innerHTML = '';
+  if (!commandes.length) {
+    grid.append(el('div', { class: 'empty-state', text: 'Aucune commande pour le moment. Soyez le premier ! 🍕' }));
+    return;
+  }
+  commandes.forEach((c, i) => {
+    const heure = c.created_at.slice(11, 16);
+    grid.append(
+      el('article', { class: 'order', style: `animation-delay:${Math.min(i, 10) * 40}ms` }, [
+        el('div', { class: 'order-top' }, [
+          el('span', { class: 'order-ref', text: c.reference }),
+          el('span', { class: 'status', text: c.statut }),
+        ]),
+        el('p', { class: 'items', text: c.articles }),
+        el('div', { class: 'order-foot' }, [
+          el('span', {
+            text: `${c.client_prenom} ${c.client_nom[0]}. · ${c.mode === 'livraison' ? '🛵 Livraison' : '🛍️ À emporter'} · ${heure}`,
+          }),
+          el('strong', { text: dt(c.total) }),
+        ]),
+      ])
+    );
+  });
+}
+
+/* ---------- Infos serveur (instance derrière l'ALB, état RDS) ---------- */
+async function chargerInfo() {
+  try {
+    const info = await api('/api/info');
+    $('info-instance').textContent = info.instance;
+    $('info-db').textContent = info.db;
+    state.frais = info.frais_livraison;
+    state.seuil = info.seuil_livraison_offerte;
+    document.querySelectorAll('.seuil').forEach((s) => (s.textContent = `${state.seuil} DT`));
+    rendrePanier();
+  } catch {
+    $('info-instance').textContent = '?';
+    $('info-db').textContent = '?';
+  }
+}
+
 /* ---------- Démarrage ---------- */
-construireJours();
-refreshUI();
-Promise.all([chargerSpecialites(), chargerRendezVous()]).catch((e) =>
-  toast(`Impossible de charger les données : ${e.message}`)
-);
+async function chargerMenu() {
+  const [categories, plats] = await Promise.all([api('/api/categories'), api('/api/plats')]);
+  state.categories = categories;
+  state.plats = plats;
+  // Retirer du panier les plats qui ne sont plus au menu
+  [...state.panier.keys()].forEach((id) => platParId(id) || state.panier.delete(id));
+  rendreCategories();
+  rendrePlats();
+  rendrePanier();
+}
+
+restaurerPanier();
+rendrePanier();
+chargerInfo();
+Promise.all([chargerMenu(), chargerCommandes()]).catch((e) => {
+  $('plats').innerHTML = '';
+  $('plats').append(el('div', { class: 'empty-state', text: `Impossible de charger le menu : ${e.message}` }));
+  toast(`Impossible de charger les données : ${e.message}`);
+});

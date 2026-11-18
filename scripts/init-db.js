@@ -1,29 +1,42 @@
-// Crée la base (si besoin), les tables et insère les données initiales
-// à partir de db/init.sql, en utilisant db.config.js.
+// Migration : npm run init-db
+// Crée automatiquement la base (si elle n'existe pas), les tables, puis charge les données
+// initiales depuis db/init.sql, en utilisant config.js. Peut être relancée sans doublon.
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
-const config = require('../db.config');
+const config = require('../config');
 
 async function main() {
+  if (String(config.host).startsWith('[')) {
+    throw new Error("config.js n'est pas renseigné (host = endpoint RDS, user, password).");
+  }
+
+  console.log(`Connexion à ${config.host}:${config.port} ...`);
   const connection = await mysql.createConnection({
     host: config.host,
     port: config.port,
     user: config.user,
     password: config.password,
+    connectTimeout: 10000,
     multipleStatements: true,
   });
 
-  await connection.query(
-    `CREATE DATABASE IF NOT EXISTS \`${config.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
-  );
-  await connection.query(`USE \`${config.database}\``);
+  try {
+    await connection.query(
+      `CREATE DATABASE IF NOT EXISTS \`${config.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
+    );
+    console.log(`Base "${config.database}" créée (ou déjà existante).`);
+    await connection.query(`USE \`${config.database}\``);
 
-  const sql = fs.readFileSync(path.join(__dirname, '..', 'db', 'init.sql'), 'utf8');
-  await connection.query(sql);
-  await connection.end();
+    const sql = fs.readFileSync(path.join(__dirname, '..', 'db', 'init.sql'), 'utf8');
+    await connection.query(sql);
 
-  console.log(`Base "${config.database}" initialisée avec succès.`);
+    const [[{ d }]] = await connection.query('SELECT COUNT(*) AS d FROM categories');
+    const [[{ s }]] = await connection.query('SELECT COUNT(*) AS s FROM plats');
+    console.log(`Tables créées et données chargées : ${d} catégories, ${s} plats.`);
+  } finally {
+    await connection.end();
+  }
 }
 
 main().catch((err) => {
